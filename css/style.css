@@ -590,3 +590,12 @@ body.is-map .topbar, body.is-map .tabbar { backdrop-filter: none; -webkit-backdr
 .map-svg.holo .node-shared .halo { fill: #ff79c0; opacity: .35; }
 .map-svg.holo .node-link .halo { display: none; }
 .fps-meter { position: fixed; z-index: 99; left: 8px; top: calc(var(--toph) + env(safe-area-inset-top) + 6px); padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,.6); color: #8f8; font: 600 12px/1.3 ui-monospace, monospace; pointer-events: none; }
+
+/* Pinkie's did-you-knows */
+.dyk { position: relative; padding: 14px 14px 10px 14px; border-radius: 18px; background: color-mix(in srgb, #f26ac0 12%, var(--card)); border: 2px dashed color-mix(in srgb, #f26ac0 45%, transparent); }
+.dyk ul { margin: 0; padding: 0 0 0 4px; list-style: none; font-family: var(--serif); line-height: 1.5; font-size: .95rem; }
+.dyk li { padding: 6px 0 6px 22px; position: relative; }
+.dyk li::before { content: '🎈'; position: absolute; left: 0; top: 6px; font-size: .85rem; }
+.dyk li + li { border-top: 1px dashed color-mix(in srgb, #f26ac0 25%, transparent); }
+.dyk-pony { float: right; width: 92px; margin: -34px -6px 4px 8px; shape-outside: margin-box; }
+.dyk-link { font-family: var(--serif); font-size: 1em; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--link) 40%, transparent); }

@@ -497,6 +497,9 @@
           </div>`;
         }).join('')}</div>
 
+        <h2 class="sec-title" id="dykTitle" hidden><span>Pinkie's did-you-knows</span><small>straight from the newspaper!</small></h2>
+        <div id="dyk"></div>
+
         <h2 class="sec-title" id="otdTitle"><span>Celestia's chronicle: on this day</span></h2>
         <div id="onThisDay"><div class="skel-block"></div></div>
 
@@ -530,6 +533,12 @@
     } else {
       $('#mostRead').innerHTML = `<p class="muted">Nopony has borrowed anything yet today.</p>`;
     }
+    const dyk = feed && feed.dyk;
+    if (dyk && dyk.length) {
+      $('#dykTitle').hidden = false;
+      const pinkie = Ponies.art('pinkie', 'toast-wave', 'bust');
+      $('#dyk').innerHTML = `<div class="dyk">${artImg(pinkie, 'dyk-pony', true)}<ul>${dyk.slice(0, 5).map(f => `<li>${dykHTML(f.html || esc(f.text))}</li>`).join('')}</ul></div>`;
+    }
     const otd = feed && feed.onthisday;
     if (otd && otd.length) {
       $('#onThisDay').innerHTML = `<ol class="chronicle">${otd.slice(0, 6).map(ev => {
@@ -540,6 +549,24 @@
     } else {
       $('#otdTitle').remove(); $('#onThisDay').remove();
     }
+  }
+
+  // A did-you-know fact as safe HTML: plain text and italics kept, wiki links become tap-to-peek buttons.
+  function dykHTML(html) {
+    const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+    const walk = (node) => Array.from(node.childNodes).map(n => {
+      if (n.nodeType === 3) return esc(pt(n.nodeValue));
+      if (n.nodeType !== 1) return '';
+      const inner = walk(n);
+      if (n.tagName === 'A') {
+        const t = n.getAttribute('title') || '';
+        return t && /\/wiki\//.test(n.getAttribute('href') || '') ? `<button class="link-btn dyk-link" data-peek="${esc(t)}">${inner}</button>` : inner;
+      }
+      if (n.tagName === 'I') return `<i>${inner}</i>`;
+      if (n.tagName === 'B') return `<b>${inner}</b>`;
+      return inner;
+    }).join('');
+    return walk(doc.body.firstChild);
   }
 
   async function renderArticle(title) {

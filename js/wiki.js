@@ -58,11 +58,22 @@
       .then(d => ((d.parse && d.parse.links) || []).filter(l => l.ns === 0 && l.exists).map(l => l.title)));
   }
 
-  function featured() {
-    const d = new Date();
+  // Wikipedia's daily feed, keyed by UTC date. Its most-read list only appears later in the (UTC) day,
+  // so early on we borrow yesterday's; if today's feed doesn't exist yet at all, yesterday's is used whole.
+  function feedFor(date) {
     const pad = n => String(n).padStart(2, '0');
-    const url = `https://${LANG}.wikipedia.org/api/rest_v1/feed/featured/${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+    const url = `https://${LANG}.wikipedia.org/api/rest_v1/feed/featured/${date.getUTCFullYear()}/${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())}`;
     return cached(key('feat', url), () => fetch(url, { headers: HEADERS }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }));
+  }
+  async function featured() {
+    const now = new Date(), yesterday = new Date(now.getTime() - 864e5);
+    let today = null;
+    try { today = await feedFor(now); } catch (e) { /* not published yet */ }
+    if (today && today.mostread) return today;
+    let prev = null;
+    try { prev = await feedFor(yesterday); } catch (e) { /* offline or unsupported language */ }
+    if (!today && !prev) throw new Error('no feed');
+    return Object.assign({}, prev || {}, today || {}, { mostread: (today && today.mostread) || (prev && prev.mostread) });
   }
 
   const NS_RE = /^(file|image|category|help|special|template|wikipedia|portal|talk|user|module|draft|mediawiki|wp|archivo|imagen|categoría|ayuda|especial|plantilla|usuario|anexo|datei|kategorie|hilfe|vorlage|benutzer|fichier|catégorie|aide|modèle|utilisateur|arquivo|categoria|ajuda|predefinição|utilizador|file|immagine|aiuto|utente)\s*:/i;

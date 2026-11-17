@@ -14,6 +14,12 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: empty "Most borrowed" shelf, and Pinkie's did-you-knows
+
+- Wikipedia publishes the day's feed (keyed by UTC date) in stages, and its `mostread` list arrives hours into the UTC day. At 03:53 UTC on the 17th, today's feed had `tfa`, `image`, `news`, `onthisday` and `dyk` but no `mostread`, so the shelf was empty.
+- `Wiki.featured()` now uses UTC dates. It borrows yesterday's `mostread` when today's isn't out yet, and falls back to yesterday's whole feed when today's doesn't exist.
+- The feed's `dyk` (Did you know…) is now **"Pinkie's did-you-knows"** on the home page: five facts with their article links turned into tap-to-peek buttons, sanitized by keeping only text, `<i>` and `<b>`.
+
 ## 2026-11-17: phone fixes for the Cutie Map
 
 The user tested on their phone and reported two problems: tapping a node opened the drawer and it closed again immediately, and the map ran slowly.
