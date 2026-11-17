@@ -132,6 +132,81 @@ window.ART = {
    "w": 768,
    "h": 609
   },
+  "spike-fire-000": {
+   "src": "assets/art/fx/spike-fire-000.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-001": {
+   "src": "assets/art/fx/spike-fire-001.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-002": {
+   "src": "assets/art/fx/spike-fire-002.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-003": {
+   "src": "assets/art/fx/spike-fire-003.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-004": {
+   "src": "assets/art/fx/spike-fire-004.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-005": {
+   "src": "assets/art/fx/spike-fire-005.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-006": {
+   "src": "assets/art/fx/spike-fire-006.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-007": {
+   "src": "assets/art/fx/spike-fire-007.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-008": {
+   "src": "assets/art/fx/spike-fire-008.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-009": {
+   "src": "assets/art/fx/spike-fire-009.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-010": {
+   "src": "assets/art/fx/spike-fire-010.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-011": {
+   "src": "assets/art/fx/spike-fire-011.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-012": {
+   "src": "assets/art/fx/spike-fire-012.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-013": {
+   "src": "assets/art/fx/spike-fire-013.webp",
+   "w": 700,
+   "h": 712
+  },
+  "spike-fire-014": {
+   "src": "assets/art/fx/spike-fire-014.webp",
+   "w": 700,
+   "h": 712
+  },
   "wax-seal": {
    "src": "assets/art/fx/wax-seal.webp",
    "w": 256,

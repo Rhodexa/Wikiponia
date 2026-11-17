@@ -21,6 +21,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
+SFX_OUT = ROOT / 'assets' / 'sfx'
+AUDIO = {'.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aiff', '.aif'}
 SRC = ROOT / 'new_assets'
 OUT = ROOT / 'assets' / 'art'
 EXTS = {'.png', '.webp', '.jpg', '.jpeg'}
@@ -77,6 +79,23 @@ def process(src, dst, folder, pose):
     return (w0, h0), im.size, notes
 
 
+def process_audio(src, dst):
+    """Trim leading silence, normalize loudness, mono MP3: snappy and even across the kit."""
+    import subprocess
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    af = 'silenceremove=start_periods=1:start_threshold=-45dB,loudnorm=I=-18:TP=-2:LRA=11'
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-af', af, '-ac', '1', '-ar', '44100',
+                        '-codec:a', 'libmp3lame', '-b:a', '96k', str(dst)], capture_output=True, text=True)
+    if r.returncode:
+        return None, r.stderr.strip()[:200]
+    p = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(dst)],
+                       capture_output=True, text=True)
+    try:
+        return float(p.stdout.strip()), None
+    except ValueError:
+        return 0.0, None
+
+
 def main():
     force = '--force' in sys.argv
     if not SRC.exists():
@@ -102,8 +121,22 @@ def main():
         print(f'ok    {folder}/{pose}  {w0}x{h0} -> {w1}x{h1}  {kb:.0f} KB' + ''.join(f'\n      ! {n}' for n in notes))
         done += 1
 
-    # Manifest: { folder: { pose: { src, w, h } } }
+    # Sounds: new_assets/sfx/<name>.wav -> assets/sfx/<name>.mp3
+    for src in sorted((SRC / 'sfx').glob('*')) if (SRC / 'sfx').exists() else []:
+        if src.suffix.lower() not in AUDIO:
+            continue
+        name = src.stem.lower().replace(' ', '-').replace('_', '-')
+        dst = SFX_OUT / f'{name}.mp3'
+        if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime and not force:
+            continue
+        dur, err = process_audio(src, dst)
+        print(f'sfx   {name}  ' + (f'{dur:.2f}s  {dst.stat().st_size / 1024:.0f} KB' if err is None else f'FAILED: {err}'))
+        done += 1
+
+    # Manifest: { folder: { pose: { src, w, h } } }, plus sfx: { name: { src } }
     manifest = {}
+    for f in sorted(SFX_OUT.glob('*.mp3')) if SFX_OUT.exists() else []:
+        manifest.setdefault('sfx', {})[f.stem] = {'src': f.relative_to(ROOT).as_posix()}
     for f in sorted(OUT.rglob('*.webp')):
         with Image.open(f) as im:
             w, h = im.size

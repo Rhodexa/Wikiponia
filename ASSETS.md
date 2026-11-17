@@ -187,8 +187,25 @@ Each one is `<pony>/bust`. Give every bust a **personality expression**, not a n
 
 ---
 
-## Optional: sounds (from your samples)
+## Sounds (the app is ready for them)
 
-All short (under 1 s), quiet, and toggleable in settings. Put them in `new_assets/sfx/`.
+Export each sound from Audacity as **`new_assets/sfx/<name>.wav`** (MP3, OGG or FLAC also work), then run `python3 tools/process_assets.py`.
+- **Processing is automatic:** the script trims leading silence, evens out loudness and converts to small MP3s in `assets/sfx/`.
+- **Format:** keep each under about 1 s, except the loop. Stereo is fine; the script makes it mono.
+- **Fallbacks:** each moment tries names left to right and plays the first one that exists. A small kit (`pop`, `page-turn`, `magic-zap`) already covers almost everything.
+- **Off switch:** sound can be turned off in the Spellbook.
 
-`page-turn` · `magic-zap` (book opens) · `whoosh-loop` (stacks run, ~1.2 s) · `spike-burp` · `party-horn` · `discord-snap` · `tap-sparkle`
+| Moment | Names tried, in order |
+|---|---|
+| Tap anywhere (with sparkles on) | `tap-sparkle` (quiet, pitch varies slightly) |
+| Cross-reference card slides up | `peek` → `page-turn` |
+| Opening a chapter or trading card | `page-turn` |
+| Running through the stacks | `whoosh-loop`, **looped** while she runs (make it loop seamlessly) |
+| "Found it!" | `found` → `magic-zap` |
+| The book flies open | `book-open` → `page-turn` |
+| Spike's Scroll starts | `spike-burp` → `magic-zap` |
+| The scroll unrolls | `scroll-unroll` → `page-turn` |
+| A pony pops up with a comment | `toast-<pony>` (e.g. `toast-rarity`) → Pinkie: `party-horn`, Discord: `discord-snap` → `pop` |
+| Added to the saddlebag | `saddlebag` → `pop` |
+| Cross-referencing on the Cutie Map | `crossref` → `magic-zap` |
+| Sun or moon toggle | `day` / `night` → `magic-zap` |

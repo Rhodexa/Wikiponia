@@ -14,6 +14,15 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: Git, sound system, Spike's real fire
+
+- **Git:** the repo started on `main`, ready for GitHub Pages: all paths are relative and there's a `.nojekyll` file. `.gitignore` skips the zip (an identical copy of `new_assets/new_assets/`) and Audacity work files.
+- **Sound:** `js/sound.js` (Web Audio, unlocked on the first tap) plus `tools/process_assets.py`, which turns `new_assets/sfx/<name>.wav` into trimmed, loudness-normalized MP3s in `assets/sfx/`. The hook names and fallbacks are in `ASSETS.md` → Sounds. The app is silent until sounds exist. There's a toggle in the Spellbook.
+- **Spike's fire** is the show's own breath animation (FLA-RE `output/fx/stock_spike-fire-ref`), mirrored and imported as `fx/spike-fire-000…014`.
+  - In Spike's Scroll it plays at 24 fps from the end of the AI burp's flame.
+  - It's **aimed at runtime**: rotated around its source and scaled so its curl reaches the spot where the closed scroll pops out, on any screen.
+- **Fix:** long titles on the open scroll now wrap and shrink, like the book cover.
+
 ## 2026-11-17: Twilight's gallop from the show rigs
 
 - The stacks run plays `twilight/run-000…007`, an 8-frame back-view gallop at 24 fps.

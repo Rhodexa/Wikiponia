@@ -135,17 +135,19 @@ html.art-fx-wax-seal .seal svg { width: 34px; height: 34px; filter: brightness(0
 .rig-spike { position: relative; width: 100%; display: block; }
 .rig-fire { display: none; position: absolute; left: 50%; top: 42%; width: min(92vw, 460px); translate: -50% -50%; transform: scale(.2); opacity: 0; }
 .scroll-fx.rigged .rig-fire { display: block; }
+.scroll-fx.rigged .rig-fire.seq { translate: none; transform: none; animation: none !important; z-index: 1; filter: drop-shadow(0 0 10px rgba(120, 255, 120, .45)); }
 .scroll-fx.rigged.burn .spike-rig { animation: rigIn .3s ease-out forwards; }
 .scroll-fx.rigged.burn .rig-fire { animation: fireOut 1s .3s ease-out forwards; }
 @keyframes rigIn { to { transform: none; } }
 @keyframes fireOut { 0% { transform: scale(.2) rotate(-8deg); opacity: 0; } 30% { opacity: 1; } 55% { transform: scale(1) rotate(0); opacity: 1; } 100% { transform: scale(1.35) rotate(4deg); opacity: 0; } }
-.scroll-fx.rigged .scroll-closed { display: block; position: absolute; width: min(56vw, 260px); left: 50%; top: 42%; translate: -50% -50%; transform: scale(0) rotate(-20deg); }
+.scroll-fx.rigged .scroll-closed { z-index: 2; display: block; position: absolute; width: min(56vw, 260px); left: 50%; top: 42%; translate: -50% -50%; transform: scale(0) rotate(-20deg); }
 .scroll-fx.rigged.burn .scroll-closed { animation: scrollPop .5s .75s cubic-bezier(.2,1.5,.4,1) forwards; }
 @keyframes scrollPop { to { transform: scale(1) rotate(-6deg); } }
 .scroll-fx.rigged.unroll .scroll-closed { animation: none; transform: scale(0); transition: transform .2s ease-in; }
 html.art-fx-scroll-open .scroll-fx.rigged .parchment { background: var(--art-fx-scroll-open) center / 100% 100% no-repeat; box-shadow: none; aspect-ratio: 768 / 519; width: min(360px, 88vw); display: grid; place-items: center; padding: 0 12%; }
 html.art-fx-scroll-open .scroll-fx.rigged .parchment::before, html.art-fx-scroll-open .scroll-fx.rigged .parchment::after { display: none; }
-html.art-fx-scroll-open .scroll-fx.rigged .parchment-text { padding: 0; }
+html.art-fx-scroll-open .scroll-fx.rigged .parchment { grid-template-columns: minmax(0, 1fr); }
+html.art-fx-scroll-open .scroll-fx.rigged .parchment-text { padding: 0; min-width: 0; overflow-wrap: break-word; }
 .scroll-fx.rigged.unroll .parchment { animation-delay: .15s; }
 
 /* ============ Home ============ */

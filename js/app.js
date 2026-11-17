@@ -12,7 +12,8 @@
     set(k, v) { try { localStorage.setItem('wikiponia.' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const settings = Object.assign({ theme: 'auto', ponify: true, motion: !reduceMotion, sparkles: true, lang: 'en', name: '' }, store.get('settings', {}));
+  const settings = Object.assign({ theme: 'auto', ponify: true, motion: !reduceMotion, sparkles: true, sound: true, lang: 'en', name: '' }, store.get('settings', {}));
+  Sound.setEnabled(settings.sound);
   let journal = store.get('journal', []);       // [{title, t}] newest first
   let saddlebag = store.get('saddlebag', []);   // [{title, t}]
   const mapMemory = { expanded: [] };
@@ -96,6 +97,7 @@
     el.style.setProperty('--pony', p.color);
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add('show'));
+    Sound.play([`toast-${p.id}`, p.id === 'pinkie' && 'party-horn', p.id === 'discord' && 'discord-snap', 'pop'].filter(Boolean), { volume: 0.8 });
     el.onclick = () => { clearTimeout(toastTimer); done(); };
     const done = async () => {
       el.classList.remove('show');
@@ -110,6 +112,7 @@
   /* ---------- sparkles ---------- */
   document.addEventListener('pointerdown', (ev) => {
     if (!settings.sparkles || !settings.motion) return;
+    Sound.play('tap-sparkle', { volume: 0.25, vary: 0.12 });
     const box = $('#sparkles');
     const colors = ['#f26ac0', '#9b6fd1', '#f2c14e', '#5fd0f0', '#ffffff'];
     for (let i = 0; i < 7; i++) {
@@ -163,6 +166,7 @@
 
   /* ---------- peek (cross-reference card) ---------- */
   async function peek(title, opts = {}) {
+    Sound.play(['peek', 'page-turn'], { volume: 0.6, vary: 0.05 });
     const mk = Marks.cutieMark(title);
     const cn = callNumber(title);
     openSheet(`<div class="peek" style="--c1:${mk.colors[0]};--c2:${mk.colors[1]}">
@@ -222,6 +226,7 @@
       el.hidden = false;
       void el.offsetWidth;
       el.classList.add('running');
+      Sound.loop('whoosh-loop', { volume: 0.6 });
       const lines = [
         `Searching the stacks for “${esc(pt(title))}”…`,
         `Aisle ${cn.aisle}… shelf ${cn.shelf}…`,
@@ -237,12 +242,15 @@
           await minTime;
           clearInterval(iv);
           if (runIv) clearInterval(runIv);
+          Sound.stop('whoosh-loop');
           if (ok && Ponies.has(runner, 'found-it')) tp.src = Ponies.art(runner, 'found-it').src;
           if (!ok) { el.classList.add('fade'); await sleep(250); el.hidden = true; return; }
           status.innerHTML = 'Found it!';
           el.classList.add('found');
+          Sound.play(['found', 'magic-zap'], { volume: 0.8 });
           await sleep(650);
           el.classList.add('opening');
+          Sound.play(['book-open', 'page-turn']);
           await sleep(550);
           el.classList.add('fade');
           await sleep(280);
@@ -274,12 +282,44 @@
     }
     fx.className = 'scroll-fx' + (rigged ? ' rigged' : '');
     fx.hidden = false; void fx.offsetWidth; fx.classList.add('burn');
+    Sound.play(['spike-burp', 'magic-zap']);
+    // Spike's real green fire from the show (FLA-RE: stk_c07 spike_fire_fire_ref), played frame by frame
+    const fireSeq = rigged ? Ponies.frames('fx', 'spike-fire') : [];
+    const fireEl = $('#rigFire');
+    fireEl.classList.toggle('seq', fireSeq.length > 0);
+    if (fireSeq.length) {
+      fireSeq.forEach(src => { const im = new Image(); im.src = src; });
+      const rig = $('.spike-rig', fx);
+      // Aim the flame: its source (15%, 85% of the frame) sits at Spike's breath, its curl (80%, 15%) at the scroll.
+      const mouthX = rig.offsetLeft + rig.offsetWidth * 0.9, mouthY = rig.offsetTop + rig.offsetHeight * 0.42;
+      const goalX = window.innerWidth / 2, goalY = fx.clientHeight * 0.42;
+      const dist = Math.hypot(goalX - mouthX, goalY - mouthY);
+      const W = Math.min(dist / 0.95, window.innerWidth * 1.1), H = W * 712 / 700;
+      const native = Math.atan2(-0.70 * H, 0.65 * W), want = Math.atan2(goalY - mouthY, goalX - mouthX);
+      Object.assign(fireEl.style, {
+        width: W + 'px', left: (mouthX - 0.15 * W) + 'px', top: (mouthY - 0.85 * H) + 'px', opacity: 0,
+        transformOrigin: '15% 85%', transform: `rotate(${((want - native) * 180 / Math.PI).toFixed(1)}deg)`,
+      });
+      fireEl.src = fireSeq[0];
+      let fi = 0;
+      setTimeout(() => {
+        fireEl.style.opacity = 1;
+        const iv = setInterval(() => {
+          if (++fi >= fireSeq.length) { clearInterval(iv); fireEl.style.opacity = 0; return; }
+          fireEl.src = fireSeq[fi];
+        }, 1000 / 24);
+      }, 320);
+    } else {
+      fireEl.removeAttribute('style');
+    }
     $('#scrollText').innerHTML = '';
     let title;
     try { [title] = await Promise.all([Wiki.random(), sleep(rigged ? 1300 : 700)]); }
     catch (e) { fx.hidden = true; toast('spike', 'The scroll got lost in the mail. Try again?'); return; }
     $('#scrollText').innerHTML = `<small>A scroll from Spike!</small><span>${esc(pt(title))}</span>`;
+    $('#scrollText span').style.fontSize = title.length > 28 ? '1.05rem' : title.length > 16 ? '1.3rem' : '';
     fx.classList.add('unroll');
+    Sound.play(['scroll-unroll', 'page-turn']);
     await sleep(rigged ? 1700 : 1500);
     fx.classList.add('fade');
     pendingTravel = null;
@@ -364,6 +404,7 @@
     const dark = settings.theme === 'night' || (settings.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
     settings.theme = dark ? 'day' : 'night';
     saveSettings(); applyTheme();
+    Sound.play([dark ? 'day' : 'night', 'magic-zap'], { volume: 0.8 });
     toast(dark ? 'celestia' : 'luna', dark ? 'Good morning! I raised the sun for you.' : 'We have raised the moon. Read quietly; ponies are sleeping.', 2800, dark ? 'raise-sun' : 'raise-moon');
   });
 
@@ -374,6 +415,7 @@
       <h3 class="sheet-title">Spellbook</h3>
       <label class="row"><span><b>Ponify text</b><small>everyone → everypony, hands → hooves (English only)</small></span><input type="checkbox" data-s="ponify" ${settings.ponify ? 'checked' : ''}></label>
       <label class="row"><span><b>Library travel</b><small>Run through the stacks when you open a book</small></span><input type="checkbox" data-s="motion" ${settings.motion ? 'checked' : ''}></label>
+      <label class="row"><span><b>Sound effects</b><small>${Sound.available ? 'Page turns, magic, and one very rude dragon' : 'No sounds installed yet'}</small></span><input type="checkbox" data-s="sound" ${settings.sound ? 'checked' : ''}></label>
       <label class="row"><span><b>Tap sparkles</b><small>A little magic on every touch</small></span><input type="checkbox" data-s="sparkles" ${settings.sparkles ? 'checked' : ''}></label>
       <div class="row"><span><b>Sky</b><small>Who controls the sun and moon?</small></span>
         <select data-s="theme"><option value="auto">Auto</option><option value="day">Celestia's day</option><option value="night">Luna's night</option></select></div>
@@ -390,6 +432,7 @@
       settings[k] = inp.type === 'checkbox' ? inp.checked : inp.value;
       saveSettings();
       if (k === 'theme') applyTheme();
+      if (k === 'sound') Sound.setEnabled(settings.sound);
       if (k === 'lang') { Wiki.setLang(settings.lang); document.documentElement.lang = settings.lang; current = null; mapMemory.expanded = []; closeSheet(); location.hash = '#/'; route(); }
       if (k === 'ponify' && current) route();
     }));
@@ -564,7 +607,7 @@
       if (b.dataset.act === 'bag') {
         const on = toggleBag(art.title);
         b.textContent = on ? '★ In saddlebag' : '☆ Saddlebag';
-        if (on) toast('spike', 'Tucked it into your saddlebag!', 2200, 'toast-salute');
+        if (on) { Sound.play(['saddlebag', 'pop']); toast('spike', 'Tucked it into your saddlebag!', 2200, 'toast-salute'); }
       }
       if (b.dataset.act === 'toc') showToc(body);
     });
@@ -686,6 +729,7 @@
     if (!mapMemory.expanded.includes(title)) mapMemory.expanded.push(title);
     const m = mapInstance;
     const before = Array.from(m.nodes.values()).filter(n => m.isShared(n)).length;
+    Sound.play(['crossref', 'magic-zap']);
     try { await addExpansion(m, title); } catch (e) { toast('derpy', 'I dropped that book. Try again?', 4200, 'toast-oops'); return; }
     m.nodes.forEach(n => { if (m.isShared(n)) n.dirty = true; });
     m.render();
@@ -749,6 +793,12 @@
   }
 
   /* ---------- global link handling ---------- */
+  let lastTap = 0;
+  view.addEventListener('pointerdown', () => { lastTap = performance.now(); }, true);
+  view.addEventListener('toggle', (e) => {
+    if (performance.now() - lastTap > 700) return;   // ignore chapters that start open
+    if (e.target.matches && e.target.matches('details.chapter, details.pony-card') && e.target.open) Sound.play('page-turn', { volume: 0.5, vary: 0.06 });
+  }, true);
   view.addEventListener('click', (e) => {
     const xref = e.target.closest('a.xref');
     if (xref) { e.preventDefault(); peek(xref.dataset.title); return; }
