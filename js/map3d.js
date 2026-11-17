@@ -131,8 +131,8 @@ function sparkles(count) {
  * projector.orbit(dx, dy) / zoom(f) / reset() are driven by the map's drag/pinch gestures.
  */
 export async function mount(container, opts = {}) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
@@ -196,7 +196,8 @@ export async function mount(container, opts = {}) {
     refDist = dist;
   }
   fit(); place();
-  const ro = new ResizeObserver(() => { fit(); place(); });
+  let resized = true;   // first frame, and after any resize, the graph must be re-projected
+  const ro = new ResizeObserver(() => { fit(); place(); resized = true; });
   ro.observe(container);
 
   const v = new THREE.Vector3();
@@ -222,21 +223,23 @@ export async function mount(container, opts = {}) {
     reset() { Object.assign(orbit, DEF, { yaw: Math.round(orbit.yaw / (Math.PI * 2)) * Math.PI * 2 }); },
   };
 
-  let raf = 0, last = performance.now(), dead = false;
+  let raf = 0, last = performance.now(), dead = false, stillSince = 0, odd = false;
   function frame(now) {
     if (dead) return;
     raf = requestAnimationFrame(frame);
     if (document.hidden) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const k = opts.motion === false ? 1 : Math.min(1, dt * 9);
-    shown.yaw += (orbit.yaw - shown.yaw) * k;
-    shown.tilt += (orbit.tilt - shown.tilt) * k;
-    shown.zoom += (orbit.zoom - shown.zoom) * k;
-    place();
+    const dy = orbit.yaw - shown.yaw, dtl = orbit.tilt - shown.tilt, dz = orbit.zoom - shown.zoom;
+    const moved = resized || Math.abs(dy) > 1e-4 || Math.abs(dtl) > 1e-3 || Math.abs(dz) > 1e-4;
+    resized = false;
+    if (moved) { shown.yaw += dy * k; shown.tilt += dtl * k; shown.zoom += dz * k; place(); stillSince = now; }
+    // Idle (nothing moved for a second): only the sparkles animate, so 30 fps is plenty.
+    if (!moved && now - stillSince > 1000) { odd = !odd; if (odd) { if (opts.onFrame) opts.onFrame(false); return; } }
     dust.material.uniforms.t.value = now / 1000;
     light.material.uniforms.t.value = now / 1000;
     renderer.render(scene, camera);
-    if (opts.onFrame) opts.onFrame();
+    if (opts.onFrame) opts.onFrame(moved);
   }
   raf = requestAnimationFrame(frame);
 

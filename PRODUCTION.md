@@ -14,6 +14,20 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: phone fixes for the Cutie Map
+
+The user tested on their phone and reported two problems: tapping a node opened the drawer and it closed again immediately, and the map ran slowly.
+
+- **Drawer closing itself:** phones send a synthetic `click` *after* a touch ends, to whatever is under the finger by then. That was the drawer's fresh backdrop, which closed it. Backdrop clicks are now ignored for 400 ms after the drawer opens. Verified with a simulated ghost click: it lands on `sheetBackdrop` and the drawer stays open.
+- **Slowness:** profiling showed the main thread is busy only about 10% of the time while orbiting, so the cost is paint and GPU. Changes:
+  - no `backdrop-filter` blur on the bars while on the map (it re-blurred both bars every WebGL frame)
+  - the SVG graph on its own compositor layer, so the background isn't repainted each frame
+  - flat halos instead of 20 radial gradients, and no SVG filters or CSS animations on moving parts
+  - the graph redrawn only when the camera or layout moved, and the depth re-sort only touches the page when the order changes
+  - the 3D scene at 30 fps when idle, and pixel ratio capped at 1.75
+- **Stale files:** after an update, the browser can mix cached old scripts with new ones; that broke one of these tests. `serve.sh` now uses `tools/serve.py` (no-cache headers), and `tools/stamp_version.py` adds a content hash to script and style URLs, including the dynamic `map3d.js` import. `process_assets.py` runs the stamp automatically; **run `python3 tools/stamp_version.py` before committing code changes.**
+- **Testing:** add `?fps` to the URL for a frame-rate meter on a real device, e.g. `http://<ip>:8000/?fps#/map`. `tools/cdp_drive.mjs` can now call raw DevTools methods (`{"cdp": "Performance.getMetrics"}`).
+
 ## 2026-11-17: first sounds (book, party horn, Spike's burp)
 
 - The user exported `book.wav`, `party-horn.wav` and `spike-burp.wav` from their Audacity pack (`new_assets/sfx/pack.aup3`, which isn't in git).

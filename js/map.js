@@ -109,6 +109,7 @@
       this.gNodes.appendChild(g);
       n.el = g; n.dirty = false;
     }
+    this._needs3d = true; this._orderKey = null;
     this.kick(1);
   };
 
@@ -153,7 +154,7 @@
       n.vx *= 0.6; n.vy *= 0.6;
       n.x += n.vx; n.y += n.vy;
     }
-    this._draw();
+    if (!this.projector) this._draw();   // in 3D, the scene's frame loop draws (frame3d)
     this.alpha *= 0.985;
     if (this.alpha > 0.01) requestAnimationFrame(() => this._tick());
   };
@@ -164,7 +165,13 @@
     this._frame = 0;
     this.svg.classList.add('holo');
     this._apply();
-    this._draw();
+    this._needs3d = true;
+  };
+
+  // Called by the 3D scene every frame: redraw only if the camera moved, the layout is settling,
+  // or the graph is still easing to its new size. Idle frames touch no DOM at all.
+  CutieMap.prototype.frame3d = function (moved) {
+    if (moved || this.alpha > 0.01 || this._fitEasing || this._needs3d) { this._needs3d = false; this._draw3d(); }
   };
 
   CutieMap.prototype._draw3d = function () {
@@ -173,13 +180,16 @@
     for (const n of this.nodes.values()) maxR = Math.max(maxR, Math.hypot(n.x, n.y) + (n.r || 20));
     const goal = Math.max(160, maxR);
     this.fitR = this.fitR ? this.fitR + (goal - this.fitR) * 0.08 : goal;
+    this._fitEasing = Math.abs(goal - this.fitR) > 0.5;
     for (const n of this.nodes.values()) {
       const p = P.project(n.x / this.fitR, n.y / this.fitR, n.kind === 'center' ? 1 : n.kind === 'expanded' ? 0.5 : 0);
       n.p = p;
       if (n.el) {
         n.el.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) scale(${p.s.toFixed(3)})`);
-        n.el.style.opacity = (1 - 0.55 * p.d).toFixed(2);
-        n.el.classList.toggle('far', p.d > 0.5);   // back-side labels hide until you turn the map
+        const op = (1 - 0.55 * p.d).toFixed(2);
+        if (n._op !== op) { n.el.style.opacity = op; n._op = op; }
+        const far = p.d > 0.5;                      // back-side labels hide until you turn the map
+        if (n._far !== far) { n.el.classList.toggle('far', far); n._far = far; }
       }
     }
     for (const e of this.edges.values()) {
@@ -187,12 +197,14 @@
       if (!a || !b || !e.el || !a.p || !b.p) continue;
       e.el.setAttribute('x1', a.p.x.toFixed(1)); e.el.setAttribute('y1', a.p.y.toFixed(1));
       e.el.setAttribute('x2', b.p.x.toFixed(1)); e.el.setAttribute('y2', b.p.y.toFixed(1));
-      e.el.style.opacity = (1 - 0.6 * Math.max(a.p.d, b.p.d)).toFixed(2);
+      const op = (1 - 0.6 * Math.max(a.p.d, b.p.d)).toFixed(2);
+      if (e._op !== op) { e.el.style.opacity = op; e._op = op; }
     }
     // Painter's order: far nodes first, so near ones overlap them.
     if (this._frame++ % 10 === 0) {
       const order = Array.from(this.nodes.values()).filter(n => n.el && n.p).sort((a, b) => b.p.d - a.p.d);
-      for (const n of order) this.gNodes.appendChild(n.el);
+      const key = order.map(n => n.id).join('\u0000');
+      if (key !== this._orderKey) { this._orderKey = key; for (const n of order) this.gNodes.appendChild(n.el); }
     }
   };
 

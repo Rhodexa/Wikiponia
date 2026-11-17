@@ -6,4 +6,4 @@ IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo "Wikiponia is open at:"
 echo "  this computer: http://localhost:$PORT"
 [ -n "$IP" ] && echo "  your phone:    http://$IP:$PORT   (same Wi-Fi)"
-exec python3 -m http.server "$PORT" --bind 0.0.0.0
+exec python3 tools/serve.py "$PORT"

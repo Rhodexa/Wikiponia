@@ -2,7 +2,7 @@
 // 1) python3 -m http.server 8765   2) google-chrome --headless=new --remote-debugging-port=9333 --window-size=412,915 about:blank
 //    (add --enable-unsafe-swiftshader --use-angle=swiftshader to test the 3D Cutie Map)
 // 3) node --experimental-websocket tools/cdp_drive.mjs steps.json
-// steps.json: [{"go": url} | {"eval": js} | {"wait": ms} | {"shot": "out.png"}], run in order; console errors are printed at the end.
+// steps.json: [{"go": url} | {"eval": js} | {"wait": ms} | {"shot": "out.png"} | {"cdp": "Domain.method", "params": {}, "pick": [metric names]}], run in order; console errors are printed at the end.
 // usage: node --experimental-websocket cdp.mjs steps.json
 import fs from 'fs';
 const steps = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -23,6 +23,7 @@ await send('Emulation.setTouchEmulationEnabled', { enabled: true });
 for (const s of steps) {
   if (s.go) await send('Page.navigate', { url: s.go });
   if (s.eval) { const r = await send('Runtime.evaluate', { expression: s.eval, awaitPromise: true, returnByValue: true }); if (r.result?.result?.value !== undefined) console.log('eval>', JSON.stringify(r.result.result.value).slice(0, 600)); if (r.result?.exceptionDetails) console.log('evalerr>', JSON.stringify(r.result.exceptionDetails).slice(0,400)); }
+  if (s.cdp) { const r = await send(s.cdp, s.params || {}); console.log('cdp>', JSON.stringify(s.pick ? (r.result?.metrics || []).filter(m => s.pick.includes(m.name)) : r.result).slice(0, 800)); }
   if (s.wait) await new Promise(r => setTimeout(r, s.wait));
   if (s.shot) { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(s.shot, Buffer.from(r.result.data, 'base64')); console.log('shot', s.shot); }
 }

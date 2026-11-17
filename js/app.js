@@ -129,7 +129,9 @@
 
   /* ---------- bottom sheet ---------- */
   const sheet = $('#sheet'), backdrop = $('#sheetBackdrop');
+  let sheetOpenedAt = 0;
   function openSheet(html, cls) {
+    sheetOpenedAt = performance.now();
     $('#sheetBody').innerHTML = html;
     sheet.className = 'sheet ' + (cls || '');
     sheet.hidden = false; backdrop.hidden = false;
@@ -144,7 +146,9 @@
     await sleep(260);
     sheet.hidden = true; backdrop.hidden = true;
   }
-  backdrop.addEventListener('click', closeSheet);
+  // Phones send a synthetic click after a tap ends, to whatever is under the finger by then.
+  // When that tap is the one that opened the sheet, the click lands on the fresh backdrop: ignore it.
+  backdrop.addEventListener('click', () => { if (performance.now() - sheetOpenedAt > 400) closeSheet(); });
   (function dragToClose() {
     let y0 = null, dy = 0;
     sheet.addEventListener('pointerdown', (e) => {
@@ -709,9 +713,9 @@
     if (!window.WebGLRenderingContext || !HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) return;
     const mapView = $('.map-view', view);
     try {
-      const mod = await import('./map3d.js');
+      const mod = await import('./map3d.js?v=' + (window.WIKIPONIA_V || '0'));
       if (m._dead) return;
-      const handle = await mod.mount($('#map3d'), { motion: settings.motion, onFrame: () => m._draw() });
+      const handle = await mod.mount($('#map3d'), { motion: settings.motion, onFrame: (moved) => m.frame3d(moved) });
       if (m._dead) { handle.destroy(); return; }
       map3d = handle;
       m.setProjector(handle.projector);
@@ -823,6 +827,17 @@
     const tr = e.target.closest('[data-travel]');
     if (tr) { e.preventDefault(); travelTo(tr.dataset.travel); }
   });
+
+  /* ---------- ?fps: a tiny frame-rate meter for testing on real phones ---------- */
+  if (/[?&]fps\b/.test(location.search)) {
+    const el = document.createElement('div'); el.className = 'fps-meter'; document.body.appendChild(el);
+    let n = 0, t0 = performance.now(), worst = 0, last = t0;
+    (function tick(now) {
+      n++; worst = Math.max(worst, now - last); last = now;
+      if (now - t0 >= 1000) { el.textContent = `${Math.round(n * 1000 / (now - t0))} fps · worst ${Math.round(worst)} ms`; n = 0; worst = 0; t0 = now; }
+      requestAnimationFrame(tick);
+    })(t0);
+  }
 
   /* ---------- router ---------- */
   function setTab(name) {

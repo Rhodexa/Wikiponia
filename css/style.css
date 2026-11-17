@@ -572,3 +572,21 @@ body.is-map main { padding: 0; max-width: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ============ Cutie Map performance (phones) ============ */
+/* backdrop-filter over a WebGL canvas that redraws every frame = re-blurring both bars every frame. */
+body.is-map .topbar, body.is-map .tabbar { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--bg); }
+.map-zoom button { backdrop-filter: none; background: rgba(30, 24, 60, .75); }
+/* SVG filters and CSS animations on parts that move every frame force full repaints. */
+.map-svg.holo .edge-trail { filter: none; animation: none; stroke-dasharray: 3 6; }
+.map-svg.holo .node .halo { animation: none !important; }
+.map-svg.holo .node-center .halo, .map-svg.holo .node-shared .halo { opacity: .55; }
+/* Keep the graph on its own compositor layer, so orbiting doesn't repaint the background image + dot grid. */
+.map-view.has-3d .map-stage { will-change: transform; transform: translateZ(0); }
+.map-view.has-3d .map-3d { will-change: transform; }
+/* Flat halos in 3D: 20 radial-gradient circles re-rasterized every frame are expensive on phones. */
+.map-svg.holo .node .halo { fill: var(--map-glow); opacity: .12; }
+.map-svg.holo .node-center .halo { opacity: .3; }
+.map-svg.holo .node-shared .halo { fill: #ff79c0; opacity: .35; }
+.map-svg.holo .node-link .halo { display: none; }
+.fps-meter { position: fixed; z-index: 99; left: 8px; top: calc(var(--toph) + env(safe-area-inset-top) + 6px); padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,.6); color: #8f8; font: 600 12px/1.3 ui-monospace, monospace; pointer-events: none; }
