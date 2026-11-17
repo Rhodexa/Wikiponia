@@ -14,6 +14,14 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: annotator matching fixed (why Bon Bon skipped Area 51)
+
+- **Bug:** keywords matched as substrings anywhere, so Rarity scored on "**opera**tions" and "dep**art**ment", and Luna on "kn**owl**edge". Area 51 ended in a 2–2–2 tie that Rainbow Dash won only by being earlier in the cast list.
+- **Fix:** keywords now match whole words plus a plural `s`/`es`. A trailing `*` makes a stem (`mathemat*`, `myth*`, `paint*`), and 23 words that need inflections were turned into stems.
+- **Title weighting:** title matches now score 5 per word of the keyword, so "star trek" (Discord) beats "star" (Luna).
+- **Bon Bon** got UFO, alien, extraterrestrial, conspiracy, classified, covert, CIA, KGB, surveillance, Roswell, cover-up, "area 51", black site and paranormal.
+- **Checked** against 23 real articles: Area 51, Roswell and Espionage → Bon Bon; Muffin and Bubble → Derpy; Owl and Moon → Luna; Star Trek → Discord; Cello → Octavia; Greek mythology → Lyra; Knowledge → Twilight.
+
 ## 2026-11-17: empty "Most borrowed" shelf, and Pinkie's did-you-knows
 
 - Wikipedia publishes the day's feed (keyed by UTC date) in stages, and its `mostread` list arrives hours into the UTC day. At 03:53 UTC on the 17th, today's feed had `tfa`, `image`, `news`, `onthisday` and `dyk` but no `mostread`, so the shelf was empty.
