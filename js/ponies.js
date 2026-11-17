@@ -54,6 +54,26 @@
       ['Nothing suspicious in this article. Nothing at all. Move along.', 'Sweetie Drops? Never heard of her.']),
   ];
   const BY_ID = Object.fromEntries(CAST.map(p => [p.id, p]));
+
+  // Hints shown on the "Ponies met" page for ponies you haven't found yet.
+  const HINTS = {
+    twilight: 'Haunts anything about science, schools and books. (Also: the library itself.)',
+    pinkie: 'Turns up wherever there is cake, candy or a party.',
+    rainbow: 'Anything fast: aircraft, sports, storms.',
+    applejack: 'Hangs around farms, orchards and apples.',
+    rarity: 'Drawn to fashion, gems, paintings and the opera.',
+    fluttershy: 'Quietly appears on animals and nature. Or when the shelves are empty.',
+    spike: 'Dragons, volcanoes, comics… and anything sent by scroll.',
+    celestia: 'Rules over history, kings, queens and the sun.',
+    luna: 'Comes out for the moon, the stars and owls. Or when night falls.',
+    trixie: 'Performs on magic, stage, film and television.',
+    discord: 'Chaos, paradoxes… and one particular sci-fi franchise.',
+    derpy: 'Muffins, bubbles, couriers. Or when something goes very wrong.',
+    lyra: 'Music, harps and myths. Unusually interested in hands.',
+    octavia: 'Only the classiest of classical music.',
+    starlight: 'Utopias, communes and revolutions. Suspiciously friendly ones.',
+    bonbon: 'Nothing to see here. Definitely not UFOs, spies or Area 51.',
+  };
   const ART = window.ART || {};
 
   // First available new-art pose for a pony; otherwise its old full-body SVG (legacy: faces left).
@@ -108,5 +128,5 @@
     { id: 'discord', title: 'The Chaos Wing', topics: ['Chaos theory', 'Paradox', 'Surrealism', 'Entropy', 'Quantum mechanics', 'Star Trek', 'Absurdism', 'Randomness'] },
   ];
 
-  window.Ponies = { CAST, BY_ID, pickAnnotator, noteFor, WINGS, art, has, frames };
+  window.Ponies = { CAST, BY_ID, HINTS, pickAnnotator, noteFor, WINGS, art, has, frames };
 })();

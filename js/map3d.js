@@ -7,7 +7,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const TABLE_URL = new URL('../assets/models/cutie-map.glb', import.meta.url).href;
 const OUTLINE = 0x1e98d5;      // Rainbow Dash's blue mane stripe, straight from the show file
 const HOLO_Y = 0.40;           // height of the hologram plane (table top is ~0.2)
-const HOLO_R = 0.60;           // hologram radius (table radius is 0.5)
+const HOLO_R = 0.82;           // hologram radius (table radius is 0.5): the graph spreads well past the table
+const HOLO_H = 0.75;           // how tall the hologram may grow: graph heights are scaled by HOLO_R * HOLO_H
 let gltfPromise = null;
 
 function toonRamp(steps) {
@@ -126,8 +127,9 @@ function sparkles(count) {
 
 /**
  * Mount the table into `container`. Returns { projector, destroy }.
- * projector.project(u, v, lift) maps a graph point (u, v in -1..1 of the graph's radius) onto the
- *   hologram plane and returns its screen position {x, y}, scale {s} and depth {d: 0 front .. 1 back}.
+ * projector.project(u, v, w) maps a graph point (u, v in -1..1 of the graph's radius, w = height in the
+ *   same units, 0 = on the hologram plane) into the scene and returns its screen position {x, y},
+ *   scale {s} and depth {d: 0 front .. 1 back}.
  * projector.orbit(dx, dy) / zoom(f) / reset() are driven by the map's drag/pinch gestures.
  */
 export async function mount(container, opts = {}) {
@@ -168,11 +170,11 @@ export async function mount(container, opts = {}) {
   scene.add(table);
 
   // Orbit state, driven by gestures; `shown` eases toward it every frame.
-  const DEF = { yaw: 0, tilt: 60, zoom: 1 };
+  const DEF = { yaw: 0, tilt: 50, zoom: 1 };
   const orbit = { ...DEF };
   const shown = { ...DEF };
   let w = 1, h = 1, baseDist = 2, refDist = 2;
-  const target = new THREE.Vector3(0, 0.3, 0);
+  const target = new THREE.Vector3(0, HOLO_Y + 0.12, 0);
 
   function fit() {
     w = container.clientWidth || 1; h = container.clientHeight || 1;
@@ -181,7 +183,7 @@ export async function mount(container, opts = {}) {
     const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const ht = vt * camera.aspect;
     // Hologram plus a little room for labels; on tall phones let the ring touch the edges.
-    const span = camera.aspect < 0.75 ? HOLO_R * 2 * 0.94 : HOLO_R * 2 + 0.16;
+    const span = camera.aspect < 0.75 ? HOLO_R * 2 * 0.86 : HOLO_R * 2 + 0.1;
     baseDist = Math.max((span / 2) / ht, (span * 0.8 / 2) / vt);
     dust.material.uniforms.px.value = renderer.getPixelRatio() * Math.min(w, h) / 300;
   }
@@ -203,15 +205,15 @@ export async function mount(container, opts = {}) {
   const v = new THREE.Vector3();
   const sizeK = () => Math.min(1, w / 420 + 0.15);
   const projector = {
-    project(u, vv, lift) {
-      v.set(u * HOLO_R, HOLO_Y + (lift || 0) * 0.07, vv * HOLO_R);
+    project(u, vv, ht) {   // (not "w": that's the screen width below)
+      v.set(u * HOLO_R, HOLO_Y + (ht || 0) * HOLO_R * HOLO_H, vv * HOLO_R);
       holo.localToWorld(v);
       const depth = v.distanceTo(camera.position);
       v.project(camera);
       return {
         x: (v.x + 1) / 2 * w,
         y: (1 - v.y) / 2 * h,
-        s: Math.min(1.5, Math.max(0.4, 0.8 * (refDist / depth) * Math.sqrt(shown.zoom) * sizeK())),
+        s: Math.min(1.2, Math.max(0.28, 0.5 * (refDist / depth) * Math.sqrt(shown.zoom) * sizeK())),
         d: Math.min(1, Math.max(0, (depth - (refDist - HOLO_R)) / (2 * HOLO_R))),
       };
     },

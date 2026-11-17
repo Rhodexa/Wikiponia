@@ -14,6 +14,26 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: Ponies met, forgetting traces, a deeper Cutie Map
+
+All three came from the user ("it feels like trying to find Pokémon").
+
+- **Ponies met** (`#/journal/ponies`): a collection of all 16 ponies.
+  - You meet a pony when they annotate an article, pop up with a comment, or appear on the home page, an error page, Spike's Scroll or the empty map. Meetings are stored in `wikiponia.met` with where and when.
+  - Unmet ponies are silhouettes ("Who's that pony?") with a hint from `Ponies.HINTS`. Meeting one on an article shows a **✦ New friend!** badge in the annotation box.
+  - Clearing the journal keeps your ponies.
+- **Forgetting traces:**
+  - The journal's × removes a book (all its visits, plus its map branch), or takes a book out of the saddlebag.
+  - On the Cutie Map, a trail book offers **Forget I read this** and a cross-referenced book offers **Fold this branch away**.
+  - Each removal has an **Undo** in its pop-up (one level).
+  - To make this clean, the map is now computed from state: `graphSpec()` builds the wanted nodes and edges from the journal trail and the cross-referenced books, and `applySpec()` diffs them onto the live map. Removed nodes disappear and the rest keep their positions.
+- **Deeper map:**
+  - The hologram radius went from 0.6 to 0.82 (past the table), and the cutie marks are about 40% smaller. Labels stay a readable on-screen size.
+  - The layout simulation now runs in 3D, with resting heights by kind: you on top (140), cross-referenced books (95), your trail (70), links low (18). Repulsion spreads anything overlapping, and each node has a dashed "pin" down to the hologram plane.
+  - The default camera tilt is 50° so the heights read. The flat fallback ignores height.
+- **Bug found while testing:** I renamed the projector's height parameter to `w`, which shadowed the screen-width `w`, and every node collapsed to x≈0. The parameter is now `ht`.
+- **Testing gotcha:** `Page.navigate` to a URL that differs only in its `#hash` doesn't reload the page, so add a `?r=N` query to force fresh code.
+
 ## 2026-11-17: annotator matching fixed (why Bon Bon skipped Area 51)
 
 - **Bug:** keywords matched as substrings anywhere, so Rarity scored on "**opera**tions" and "dep**art**ment", and Luna on "kn**owl**edge". Area 51 ended in a 2–2–2 tie that Rainbow Dash won only by being earlier in the cast list.

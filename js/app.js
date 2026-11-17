@@ -56,6 +56,48 @@
     journal = journal.slice(0, 200);
     store.set('journal', journal);
   }
+  // Ponies met: {id: {t, where, article}}. Meeting a pony for the first time is a little event.
+  let met = store.get('met', {});
+  function meet(id, where, article) {
+    if (!Ponies.BY_ID[id] || met[id]) return false;
+    met[id] = { t: Date.now(), where: where || 'the library', article: !!article };
+    store.set('met', met);
+    return true;
+  }
+
+  // Forgetting books / folding map branches, with one level of undo (offered in a toast).
+  let undoFn = null;
+  function snapshot() { return { journal: journal.slice(), expanded: mapMemory.expanded.slice() }; }
+  function restore(snap) {
+    journal = snap.journal; mapMemory.expanded = snap.expanded;
+    store.set('journal', journal);
+    afterTraceChange();
+  }
+  function afterTraceChange() {
+    if (location.hash.startsWith('#/journal')) route();
+    else if (mapInstance) syncMap(mapInstance);
+  }
+  function forgetBook(title) {
+    const snap = snapshot();
+    journal = journal.filter(j => j.title !== title);
+    mapMemory.expanded = mapMemory.expanded.filter(x => x !== title);
+    store.set('journal', journal);
+    if (current === title) current = null;
+    undoFn = () => restore(snap);
+    Sound.play(['forget', 'pop']);
+    toast('spike', `Erased “${esc(pt(title))}” from your trail. <button class="toast-undo">Undo</button>`, 5000, 'toast-burp');
+    if (mapInstance && mapInstance.center === title) { route(); return; }
+    afterTraceChange();
+  }
+  function foldBranch(title) {
+    const snap = snapshot();
+    mapMemory.expanded = mapMemory.expanded.filter(x => x !== title);
+    undoFn = () => restore(snap);
+    Sound.play(['fold', 'page-turn']);
+    toast('twilight', `Folded the “${esc(pt(title))}” branch away. <button class="toast-undo">Undo</button>`, 5000, 'toast-tip');
+    afterTraceChange();
+  }
+
   const inBag = (t) => saddlebag.some(b => b.title === t);
   function toggleBag(t) {
     if (inBag(t)) saddlebag = saddlebag.filter(b => b.title !== t);
@@ -98,7 +140,11 @@
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add('show'));
     Sound.play([`toast-${p.id}`, p.id === 'pinkie' && 'party-horn', p.id === 'discord' && 'discord-snap', 'pop'].filter(Boolean), { volume: 0.8 });
-    el.onclick = () => { clearTimeout(toastTimer); done(); };
+    meet(p.id, current && location.hash.startsWith('#/wiki/') ? current : 'a surprise visit', !!(current && location.hash.startsWith('#/wiki/')));
+    el.onclick = (ev) => {
+      if (ev.target.closest('.toast-undo') && undoFn) { const f = undoFn; undoFn = null; f(); }
+      clearTimeout(toastTimer); done();
+    };
     const done = async () => {
       el.classList.remove('show');
       await sleep(300);
@@ -185,6 +231,8 @@
     if (sheet.hidden) return;
     const shared = opts.fromMap && mapInstance && mapInstance.nodes.get(title) && mapInstance.isShared(mapInstance.nodes.get(title));
     const expanded = mapMemory.expanded.includes(title);
+    const isCenter = mapInstance && mapInstance.center === title;
+    const inTrail = journal.some(j => j.title === title);
     $('.peek-desc', sheet).classList.remove('skel-line');
     $('.peek-desc', sheet).textContent = pt(s.description || '');
     $('.peek-content', sheet).innerHTML = `
@@ -193,7 +241,9 @@
       <p class="peek-extract">${esc(pt(s.extract || (s.missing ? 'This book hasn\'t been written yet.' : '')))}</p>
       <div class="peek-actions">
         ${s.missing ? '' : `<button class="btn primary" data-act="open">Open this tome</button>`}
-        ${opts.fromMap && !s.missing && !expanded && title !== current ? `<button class="btn" data-act="expand">Cross-reference it</button>` : ''}
+        ${opts.fromMap && !s.missing && !expanded && !isCenter ? `<button class="btn" data-act="expand">Cross-reference it</button>` : ''}
+        ${opts.fromMap && expanded ? `<button class="btn" data-act="fold">Fold this branch away</button>` : ''}
+        ${opts.fromMap && inTrail && !isCenter ? `<button class="btn ghost" data-act="forget">Forget I read this</button>` : ''}
         ${!opts.fromMap && !s.missing ? `<button class="btn" data-act="bag">${inBag(s.title) ? 'In saddlebag ✓' : 'Add to saddlebag'}</button>` : ''}
       </div>`;
     $('.peek-actions', sheet).addEventListener('click', async (e) => {
@@ -202,6 +252,8 @@
       if (a === 'open') { await closeSheet(); travelTo(s.title); }
       if (a === 'bag') { act.textContent = toggleBag(s.title) ? 'In saddlebag ✓' : 'Add to saddlebag'; }
       if (a === 'expand') { await closeSheet(); expandOnMap(title); }
+      if (a === 'fold') { await closeSheet(); foldBranch(title); }
+      if (a === 'forget') { await closeSheet(); forgetBook(title); }
     });
   }
 
@@ -280,6 +332,7 @@
       return;
     }
     const rigged = Ponies.has('spike', 'burp');
+    meet('spike', "Spike's Scroll");
     if (rigged) {
       $('#rigSpike').src = Ponies.art('spike', 'burp').src;
       if (artUrl('fx', 'dragonfire')) $('#rigFire').src = artUrl('fx', 'dragonfire');
@@ -467,6 +520,7 @@
   }
 
   async function renderHome() {
+    meet('twilight', 'the Golden Oak Library');
     current = current; // keep last
     const greet = journal.length ? 'Welcome back! Shall we continue our research?' : 'Welcome to the Golden Oak Library! What shall we learn today?';
     view.innerHTML = `
@@ -579,6 +633,7 @@
       [art, sum] = await Promise.all([Wiki.article(title), Wiki.summary(title).catch(() => ({}))]);
     } catch (e) {
       if (anim) await anim.finish(false);
+      meet('derpy', 'a crash in the stacks');
       view.innerHTML = `<div class="empty">${artImg(Ponies.art('derpy', 'error'))}<h2>I just don't know what went wrong!</h2><p>We couldn't find “${esc(title)}” in the stacks.</p><button class="btn primary" id="tryAgain">Ask the librarian</button></div>`;
       $('#tryAgain').onclick = () => openSearch(title);
       return;
@@ -592,6 +647,7 @@
     const cn = callNumber(art.title);
     const seed = Marks.hash(art.title);
     const annot = Ponies.pickAnnotator(`${sum.description || ''} ${art.leadText.slice(0, 1500)}`, seed, art.title);
+    const newFriend = meet(annot.id, art.title, true);
     const body = art.chapters.filter(c => c.kind !== 'back');
     const back = art.chapters.filter(c => c.kind === 'back');
     const wide = window.innerWidth > 900;
@@ -610,9 +666,9 @@
             <a class="pill" href="${esc(Wiki.pageUrl(art.title))}" target="_blank" rel="noopener">W ↗</a>
           </div>
         </header>
-        <aside class="annot">
+        <aside class="annot${newFriend ? ' is-new' : ''}">
           ${artImg(Ponies.art(annot.id, 'bust'), '', true)}
-          <div><small>Annotated by ${esc(annot.name)}</small><p>${Ponies.noteFor(annot, seed)}</p></div>
+          <div><small>Annotated by ${esc(annot.name)}${newFriend ? ' <a class="new-friend" href="#/journal/ponies">✦ New friend!</a>' : ''}</small><p>${Ponies.noteFor(annot, seed)}</p></div>
         </aside>
         ${art.infobox ? `<details class="pony-card" ${wide ? 'open' : ''}><summary><span>Trading card</span><i class="chev"></i></summary><div class="pony-card-body">${art.infobox}</div></details>` : ''}
         <div class="prose lead">${art.lead}</div>
@@ -689,7 +745,7 @@
       const mk = Marks.cutieMark(r.title);
       const snip = esc(pt(clean(r.snippet).replace(/&quot;/g, '"').replace(/&amp;/g, '&'))).replace(/\u0001/g, '<mark>').replace(/\u0002/g, '</mark>');
       return `<button class="result" data-peek="${esc(r.title)}"><div class="r-mark">${mk.svg}</div><div><b>${esc(pt(r.title))}</b><p>${snip}…</p></div></button>`;
-    }).join('') : `<div class="empty">${artImg(Ponies.art('fluttershy', 'no-results'))}<p>Um… nothing on the shelves matches that. Sorry.</p></div>`;
+    }).join('') : (meet('fluttershy', 'an empty shelf'), `<div class="empty">${artImg(Ponies.art('fluttershy', 'no-results'))}<p>Um… nothing on the shelves matches that. Sorry.</p></div>`);
   }
 
   /* ---------- Cutie Map ---------- */
@@ -697,6 +753,7 @@
     const center = current || (journal[0] && journal[0].title);
     teardownMap();
     if (!center) {
+      meet('twilight', 'the blank Cutie Map');
       view.innerHTML = `<div class="empty map-empty">${artImg(Ponies.art('twilight', 'blank-map'))}<h2>The Cutie Map is blank!</h2><p>Open a few books and it will light up with how they connect.</p><button class="btn primary" id="mapAsk">Ask the librarian</button></div>`;
       $('#mapAsk').onclick = () => openSearch();
       return;
@@ -721,19 +778,47 @@
       if (f) m.zoom(f); else if (m.projector) m.projector.reset(); else { m.view = { x: 0, y: lift(), k: 1 }; m._apply(); }
     });
     mountTable(m);
-    m.addNode(center, 'center');
+    m.center = center;
+    applySpec(m, await graphSpec(center, false));   // trail first: instant
+    if (!m._dead) await syncMap(m);                  // then every cross-reference (articles are cached)
+  }
+
+  // The map is a function of state (journal trail + cross-referenced books). Forgetting or folding
+  // just changes state; syncMap diffs it onto the live map, so everything else keeps its place.
+  async function graphSpec(center, withLinks = true) {
+    const rank = { link: 0, trail: 1, expanded: 2, center: 3 };
+    const nodes = new Map(), near = new Map(), edges = [];
+    const put = (id, kind, from) => {
+      if (!nodes.has(id) || rank[kind] > rank[nodes.get(id)]) nodes.set(id, kind);
+      if (from && !near.has(id)) near.set(id, from);
+    };
+    put(center, 'center');
     const trail = [];
     for (const j of journal) { if (!trail.includes(j.title)) trail.push(j.title); if (trail.length >= 8) break; }
-    trail.forEach(t => m.addNode(t, t === center ? 'center' : 'trail'));
-    for (let i = 0; i < trail.length - 1; i++) m.addEdge(trail[i], trail[i + 1], 'trail');
+    trail.forEach(t => put(t, t === center ? 'center' : 'trail'));
+    for (let i = 0; i < trail.length - 1; i++) edges.push([trail[i], trail[i + 1], 'trail']);
+    if (withLinks) {
+      const branch = async (from, n) => {
+        try { (await Wiki.article(from)).links.slice(0, n).forEach(l => { put(l, 'link', from); edges.push([from, l, 'xref']); }); }
+        catch (e) { /* offline: that branch just stays folded */ }
+      };
+      await branch(center, 18);
+      for (const x of mapMemory.expanded) { put(x, 'expanded'); await branch(x, 14); }
+    }
+    return { nodes, near, edges };
+  }
+  function applySpec(m, spec) {
+    const key = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
+    const want = new Set(spec.edges.map(([a, b]) => key(a, b)));
+    for (const id of Array.from(m.nodes.keys())) if (!spec.nodes.has(id)) m.removeNode(id);
+    for (const e of Array.from(m.edges.values())) if (!want.has(key(e.a, e.b))) m.removeEdge(e.a, e.b);
+    for (const [id, kind] of spec.nodes) { if (m.nodes.has(id)) m.setKind(id, kind); else m.addNode(id, kind, spec.near.get(id)); }
+    for (const [a, b, k] of spec.edges) m.addEdge(a, b, k);
     m.render();
-    try {
-      const art = await Wiki.article(center);
-      if (m._dead) return;
-      art.links.slice(0, 18).forEach(l => { m.addNode(l, 'link', center); m.addEdge(center, l, 'xref'); });
-      for (const x of mapMemory.expanded) await addExpansion(m, x);
-      m.render();
-    } catch (e) { /* offline: just show trail */ }
+  }
+  async function syncMap(m) {
+    const spec = await graphSpec(m.center, true);
+    if (!m._dead) applySpec(m, spec);
   }
 
   async function mountTable(m) {
@@ -753,21 +838,17 @@
     }
   }
 
-  async function addExpansion(m, title) {
-    const art = await Wiki.article(title);
-    m.addNode(title, 'expanded');
-    art.links.slice(0, 14).forEach(l => { m.addNode(l, 'link', title); m.addEdge(title, l, 'xref'); });
-  }
-
   async function expandOnMap(title) {
     if (!mapInstance) return;
     if (!mapMemory.expanded.includes(title)) mapMemory.expanded.push(title);
     const m = mapInstance;
     const before = Array.from(m.nodes.values()).filter(n => m.isShared(n)).length;
     Sound.play(['crossref', 'magic-zap']);
-    try { await addExpansion(m, title); } catch (e) { toast('derpy', 'I dropped that book. Try again?', 4200, 'toast-oops'); return; }
-    m.nodes.forEach(n => { if (m.isShared(n)) n.dirty = true; });
-    m.render();
+    try { await Wiki.article(title); } catch (e) {
+      mapMemory.expanded = mapMemory.expanded.filter(x => x !== title);
+      toast('derpy', 'I dropped that book. Try again?', 4200, 'toast-oops'); return;
+    }
+    await syncMap(m);
     const after = Array.from(m.nodes.values()).filter(n => m.isShared(n)).length;
     const gained = after - before;
     toast('twilight', gained > 0 ? `Cross-referenced! <b>${gained}</b> tome${gained > 1 ? 's are' : ' is'} cited by both books. They glow pink now.` : 'Cross-referenced! No shared citations yet. Try another book.', 4200, gained > 0 ? 'toast-gotcha' : 'toast-tip');
@@ -781,20 +862,56 @@
   }
   function renderJournal(tab) {
     tab = tab || 'trail';
-    const list = tab === 'trail' ? journal : saddlebag;
+    const nMet = Ponies.CAST.filter(p => met[p.id]).length;
     view.innerHTML = `<section class="journal">
       <div class="journal-head">
         ${artImg(Ponies.art('spike', 'journal-writing'))}
-        <div><h2>Friendship Journal</h2><p>${journal.length} book${journal.length === 1 ? '' : 's'} read · ${saddlebag.length} in saddlebag</p></div>
+        <div><h2>Friendship Journal</h2><p>${journal.length} book${journal.length === 1 ? '' : 's'} read · ${saddlebag.length} in saddlebag · ${nMet}/${Ponies.CAST.length} ponies met</p></div>
       </div>
-      <div class="seg"><a href="#/journal" class="${tab === 'trail' ? 'on' : ''}">Reading trail</a><a href="#/journal/bag" class="${tab === 'bag' ? 'on' : ''}">Saddlebag</a></div>
-      ${journal.length ? `<button class="btn primary report-btn" id="report">✉ Write a friendship report</button>` : ''}
-      <ul class="trail">${list.length ? list.map(j => {
-        const mk = Marks.cutieMark(j.title);
-        return `<li><a href="${wikiHref(j.title)}" data-travel="${esc(j.title)}"><span class="t-mark">${mk.svg}</span><b>${esc(pt(j.title))}</b><time>${fmtTime(j.t)}</time></a></li>`;
-      }).join('') : `<li class="empty-li">${tab === 'trail' ? 'No books read yet. The library awaits!' : 'Your saddlebag is empty. Tap ☆ on a book to keep it here.'}</li>`}</ul>
+      <div class="seg seg3">
+        <a href="#/journal" class="${tab === 'trail' ? 'on' : ''}">Trail</a>
+        <a href="#/journal/bag" class="${tab === 'bag' ? 'on' : ''}">Saddlebag</a>
+        <a href="#/journal/ponies" class="${tab === 'ponies' ? 'on' : ''}">Ponies met</a>
+      </div>
+      ${tab === 'ponies' ? poniesMetHTML(nMet) : bookListHTML(tab)}
     </section>`;
     const r = $('#report'); if (r) r.onclick = friendshipReport;
+    const list = $('.trail', view);
+    if (list) list.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-forget]'); if (!b) return;
+      e.preventDefault(); e.stopPropagation();
+      if (tab === 'bag') { toggleBag(b.dataset.forget); Sound.play('pop'); renderJournal('bag'); }
+      else forgetBook(b.dataset.forget);
+    });
+  }
+
+  function bookListHTML(tab) {
+    // The trail lists each visit; forgetting a book removes all its visits (and its map branch).
+    const list = tab === 'trail' ? journal : saddlebag;
+    return `${tab === 'trail' && journal.length ? `<button class="btn primary report-btn" id="report">✉ Write a friendship report</button>` : ''}
+      <ul class="trail">${list.length ? list.map(j => {
+        const mk = Marks.cutieMark(j.title);
+        return `<li><a href="${wikiHref(j.title)}" data-travel="${esc(j.title)}"><span class="t-mark">${mk.svg}</span><b>${esc(pt(j.title))}</b><time>${fmtTime(j.t)}</time></a>
+          <button class="t-forget" data-forget="${esc(j.title)}" aria-label="${tab === 'trail' ? 'Forget this book' : 'Take out of saddlebag'}" title="${tab === 'trail' ? 'Forget this book' : 'Take out of saddlebag'}">×</button></li>`;
+      }).join('') : `<li class="empty-li">${tab === 'trail' ? 'No books read yet. The library awaits!' : 'Your saddlebag is empty. Tap ☆ on a book to keep it here.'}</li>`}</ul>`;
+  }
+
+  function poniesMetHTML(nMet) {
+    const all = Ponies.CAST.length;
+    const msg = nMet === all ? 'You met every pony in Equestria! Twilight is writing a report about you.'
+      : nMet >= all * 0.75 ? 'Almost there… the rare ones hide on very specific topics.'
+      : nMet >= all * 0.4 ? 'Keep reading! Each pony annotates their own favourite subjects.'
+      : 'Every pony has favourite subjects. Read about them, and they\'ll show up.';
+    return `<div class="met-progress"><div class="met-bar"><i style="width:${(nMet / all * 100).toFixed(1)}%"></i></div><p><b>${nMet}</b> of ${all} ponies met. ${msg}</p></div>
+      <div class="pony-grid">${Ponies.CAST.map(p => {
+        const m = met[p.id];
+        const a = Ponies.art(p.id, 'bust');
+        return `<div class="pony-card-met${m ? '' : ' unmet'}" style="--pony:${p.color}">
+          ${artImg(a, '', true)}
+          <b>${m ? esc(p.name) : 'Who\'s that pony?'}</b>
+          <small>${m ? (m.article ? `Met on <button class="link-btn" data-peek="${esc(m.where)}">${esc(pt(m.where))}</button>` : `Met at ${esc(m.where)}`) + ` · ${fmtTime(m.t)}` : esc(Ponies.HINTS[p.id] || '')}</small>
+        </div>`;
+      }).join('')}</div>`;
   }
 
   async function friendshipReport() {
@@ -881,7 +998,7 @@
     }
     if (h !== '/map') teardownMap();
     if (h === '/map') { setTab('map'); return renderMap(); }
-    if (h.startsWith('/journal')) { setTab('journal'); window.scrollTo(0, 0); return renderJournal(h === '/journal/bag' ? 'bag' : 'trail'); }
+    if (h.startsWith('/journal')) { setTab('journal'); window.scrollTo(0, 0); return renderJournal(h === '/journal/bag' ? 'bag' : h === '/journal/ponies' ? 'ponies' : 'trail'); }
     if (h.startsWith('/search/')) { setTab(''); window.scrollTo(0, 0); return renderSearch(decodeURIComponent(h.slice(8))); }
     setTab('home');
     await renderHome();

@@ -23,11 +23,12 @@
         </radialGradient>
         <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
       </defs>
-      <g class="map-world"><g class="map-edges"></g><g class="map-nodes"></g></g>`;
+      <g class="map-world"><g class="map-stems"></g><g class="map-edges"></g><g class="map-nodes"></g></g>`;
     this.container.appendChild(svg);
     this.svg = svg;
     this.world = svg.querySelector('.map-world');
     this.gEdges = svg.querySelector('.map-edges');
+    this.gStems = svg.querySelector('.map-stems');
     this.gNodes = svg.querySelector('.map-nodes');
     this._bindGestures();
     this._resize();
@@ -63,7 +64,8 @@
     const base = near ? this.nodes.get(near) : null;
     const a = Math.random() * Math.PI * 2;
     const d = base ? 60 + Math.random() * 40 : 20 + Math.random() * 200;
-    n = { id, kind, x: (base ? base.x : 0) + Math.cos(a) * d, y: (base ? base.y : 0) + Math.sin(a) * d, vx: 0, vy: 0, parents: new Set(), dirty: true };
+    n = { id, kind, x: (base ? base.x : 0) + Math.cos(a) * d, y: (base ? base.y : 0) + Math.sin(a) * d,
+          z: Math.max(0, (base ? base.z || 0 : 0) + (Math.random() - 0.3) * 60), vx: 0, vy: 0, vz: 0, parents: new Set(), dirty: true };
     this.nodes.set(id, n);
     return n;
   };
@@ -79,6 +81,33 @@
 
   CutieMap.prototype.isShared = function (n) { return n.parents.size >= 2; };
 
+  CutieMap.prototype.setKind = function (id, kind) {
+    const n = this.nodes.get(id);
+    if (n && n.kind !== kind) { n.kind = kind; n.dirty = true; }
+  };
+
+  CutieMap.prototype.removeEdge = function (a, b) {
+    const k = a < b ? a + '\u0000' + b : b + '\u0000' + a;
+    const e = this.edges.get(k);
+    if (!e) return;
+    if (e.el) e.el.remove();
+    this.edges.delete(k);
+    for (const [p, c] of [[e.a, e.b], [e.b, e.a]]) {
+      const n = this.nodes.get(c);
+      if (n && n.parents.delete(p)) n.dirty = true;
+    }
+  };
+
+  CutieMap.prototype.removeNode = function (id) {
+    const n = this.nodes.get(id);
+    if (!n) return;
+    for (const e of Array.from(this.edges.values())) if (e.a === id || e.b === id) this.removeEdge(e.a, e.b);
+    if (n.el) n.el.remove();
+    if (n.stem) n.stem.remove();
+    this.nodes.delete(id);
+    this._orderKey = null;
+  };
+
   CutieMap.prototype.render = function () {
     // edges
     this.gEdges.textContent = '';
@@ -90,7 +119,9 @@
     }
     // nodes
     for (const n of this.nodes.values()) {
-      if (n.el && !n.dirty) continue;
+      const sh = this.isShared(n);
+      if (n.el && !n.dirty && n._sh === sh) continue;
+      n._sh = sh;
       if (n.el) n.el.remove();
       const g = document.createElementNS(NS, 'g');
       const r = n.kind === 'center' ? 38 : n.kind === 'expanded' ? 28 : n.kind === 'trail' ? 26 : 20;
@@ -107,11 +138,20 @@
         <text class="label" y="${r + 15}" text-anchor="middle"></text>`;
       g.querySelector('text').textContent = label;
       this.gNodes.appendChild(g);
-      n.el = g; n.dirty = false;
+      n.el = g; n.dirty = false; n._ls = null; n._op = null; n._far = null;
+      if (!n.stem) {
+        n.stem = document.createElementNS(NS, 'line');
+        n.stem.setAttribute('class', 'stem');
+        this.gStems.appendChild(n.stem);
+      }
     }
     this._needs3d = true; this._orderKey = null;
     this.kick(1);
   };
+
+  // Resting heights above the hologram plane (graph units): you are on top, your trail and
+  // cross-referenced books float in the middle, plain links sit low. Repulsion spreads the rest.
+  const LAYER = { center: 140, expanded: 95, trail: 70, link: 18 };
 
   CutieMap.prototype.kick = function (a) {
     const wasIdle = this.alpha < 0.01;
@@ -123,18 +163,20 @@
     if (this._dead) return;
     const nodes = Array.from(this.nodes.values());
     const alpha = this.alpha;
+    const deep = !!this.projector;   // 3D: nodes also spread vertically (z), in layers by kind
     // repulsion
     for (let i = 0; i < nodes.length; i++) {
       const a = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
         const b = nodes[j];
-        let dx = b.x - a.x, dy = b.y - a.y;
-        let d2 = dx * dx + dy * dy || 0.01;
-        const min = (a.r + b.r + 34);
+        let dx = b.x - a.x, dy = b.y - a.y, dz = deep ? b.z - a.z : 0;
+        let d2 = dx * dx + dy * dy + dz * dz || 0.01;
+        const min = (a.r + b.r + 34) * (deep ? 0.75 : 1);
         const f = (2600 / d2) * alpha + (d2 < min * min ? (min - Math.sqrt(d2)) * 0.08 : 0);
         const d = Math.sqrt(d2);
-        dx /= d; dy /= d;
+        dx /= d; dy /= d; dz /= d;
         a.vx -= dx * f; a.vy -= dy * f; b.vx += dx * f; b.vy += dy * f;
+        if (deep) { a.vz -= dz * f; b.vz += dz * f; }
       }
     }
     // springs
@@ -142,17 +184,20 @@
       const a = this.nodes.get(e.a), b = this.nodes.get(e.b);
       if (!a || !b) continue;
       const len = e.kind === 'trail' ? 150 : (a.kind === 'center' || b.kind === 'center') ? 130 : 100;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const dx = b.x - a.x, dy = b.y - a.y, dz = deep ? b.z - a.z : 0;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
       const f = (d - len) * 0.02 * alpha;
       a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
+      if (deep) { a.vz += dz / d * f; b.vz -= dz / d * f; }
     }
     for (const n of nodes) {
       if (n.kind === 'center') { n.vx += -n.x * 0.05; n.vy += -n.y * 0.05; }
       else { n.vx += -n.x * 0.002 * alpha; n.vy += -n.y * 0.002 * alpha; }
+      if (deep) n.vz += ((LAYER[n.kind] || 0) - n.z) * 0.012;
       if (n === this._drag) { n.vx = n.vy = 0; continue; }
-      n.vx *= 0.6; n.vy *= 0.6;
+      n.vx *= 0.6; n.vy *= 0.6; n.vz *= 0.6;
       n.x += n.vx; n.y += n.vy;
+      n.z = deep ? Math.max(0, n.z + n.vz) : n.z;
     }
     if (!this.projector) this._draw();   // in 3D, the scene's frame loop draws (frame3d)
     this.alpha *= 0.985;
@@ -166,6 +211,7 @@
     this.svg.classList.add('holo');
     this._apply();
     this._needs3d = true;
+    this.kick(0.8);   // let the layout grow into the third dimension
   };
 
   // Called by the 3D scene every frame: redraw only if the camera moved, the layout is settling,
@@ -182,10 +228,19 @@
     this.fitR = this.fitR ? this.fitR + (goal - this.fitR) * 0.08 : goal;
     this._fitEasing = Math.abs(goal - this.fitR) > 0.5;
     for (const n of this.nodes.values()) {
-      const p = P.project(n.x / this.fitR, n.y / this.fitR, n.kind === 'center' ? 1 : n.kind === 'expanded' ? 0.5 : 0);
+      const u = n.x / this.fitR, v = n.y / this.fitR;
+      const p = P.project(u, v, (n.z || 0) / this.fitR);
       n.p = p;
+      if (n.stem) {
+        const b = P.project(u, v, 0);
+        n.stem.setAttribute('x1', p.x.toFixed(1)); n.stem.setAttribute('y1', p.y.toFixed(1));
+        n.stem.setAttribute('x2', b.x.toFixed(1)); n.stem.setAttribute('y2', b.y.toFixed(1));
+      }
       if (n.el) {
         n.el.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) scale(${p.s.toFixed(3)})`);
+        // labels keep a readable on-screen size however small the mark gets
+        const ls = Math.round((n.kind === 'center' ? 13 : 11) / p.s);
+        if (n._ls !== ls) { const tx = n.el.querySelector('.label'); tx.style.fontSize = ls + 'px'; tx.setAttribute('y', n.r + ls * 1.1); n._ls = ls; }
         const op = (1 - 0.55 * p.d).toFixed(2);
         if (n._op !== op) { n.el.style.opacity = op; n._op = op; }
         const far = p.d > 0.5;                      // back-side labels hide until you turn the map
