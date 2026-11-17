@@ -1,0 +1,13 @@
+{
+  "name": "Wikiponia",
+  "short_name": "Wikiponia",
+  "description": "Wikipedia, but it's a pony library.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fbf3e4",
+  "theme_color": "#8e5bd0",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,10 @@
+# Same files as new_assets/new_assets/ (the extracted copy is kept)
+new_assets/*.zip
+# Audacity work files: export finished sounds to new_assets/sfx/*.wav instead
+*.aup3
+*.aup3-shm
+*.aup3-wal
+# OS / editor clutter
+.DS_Store
+*~
+__pycache__/
