@@ -79,12 +79,24 @@ def process(src, dst, folder, pose):
     return (w0, h0), im.size, notes
 
 
-def process_audio(src, dst):
-    """Trim leading silence, normalize loudness, mono MP3: snappy and even across the kit."""
+import subprocess
+
+
+def process_audio(src, dst, cut=None):
+    """Trim leading silence, normalize loudness, mono MP3: snappy and even across the kit.
+    cut = {start, end, fade_in, fade_out} takes a slice of the source first (see new_assets/sfx/splits.json)."""
     import subprocess
     dst.parent.mkdir(parents=True, exist_ok=True)
-    af = 'silenceremove=start_periods=1:start_threshold=-45dB,loudnorm=I=-18:TP=-2:LRA=11'
-    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-af', af, '-ac', '1', '-ar', '44100',
+    pre, trim = [], []
+    if cut:
+        trim = ['-ss', str(cut.get('start', 0))] + (['-to', str(cut['end'])] if cut.get('end') is not None else [])
+        if cut.get('fade_in'):
+            pre.append(f"afade=t=in:d={cut['fade_in']}")
+        if cut.get('fade_out') and cut.get('end') is not None:
+            length = cut['end'] - cut.get('start', 0)
+            pre.append(f"afade=t=out:st={max(0, length - cut['fade_out']):.3f}:d={cut['fade_out']}")
+    af = ','.join(pre + ['silenceremove=start_periods=1:start_threshold=-45dB', 'loudnorm=I=-18:TP=-2:LRA=11'])
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', *trim, '-i', str(src), '-af', af, '-ac', '1', '-ar', '44100',
                         '-codec:a', 'libmp3lame', '-b:a', '96k', str(dst)], capture_output=True, text=True)
     if r.returncode:
         return None, r.stderr.strip()[:200]
@@ -121,22 +133,49 @@ def main():
         print(f'ok    {folder}/{pose}  {w0}x{h0} -> {w1}x{h1}  {kb:.0f} KB' + ''.join(f'\n      ! {n}' for n in notes))
         done += 1
 
-    # Sounds: new_assets/sfx/<name>.wav -> assets/sfx/<name>.mp3
-    for src in sorted((SRC / 'sfx').glob('*')) if (SRC / 'sfx').exists() else []:
+    # Sounds: new_assets/sfx/<name>.wav -> assets/sfx/<name>.mp3 (and slices from splits.json)
+    sfx_dir = SRC / 'sfx'
+    splits_file = sfx_dir / 'splits.json'
+    splits = json.loads(splits_file.read_text()) if splits_file.exists() else {}
+    jobs = []   # (src, name, cut)
+    for src in sorted(sfx_dir.glob('*')) if sfx_dir.exists() else []:
         if src.suffix.lower() not in AUDIO:
             continue
-        name = src.stem.lower().replace(' ', '-').replace('_', '-')
+        spec = splits.get(src.name)
+        if spec and spec.get('slices'):
+            jobs += [(src, n, cut) for n, cut in spec['slices'].items()]
+            if not spec.get('keep_source', False):
+                continue
+        whole = {'start': 0, 'end': None, 'cues': spec.get('cues', {})} if spec and spec.get('cues') else None
+        jobs.append((src, src.stem.lower().replace(' ', '-').replace('_', '-'), whole))
+    newest_spec = splits_file.stat().st_mtime if splits_file.exists() else 0
+    for src, name, cut in jobs:
         dst = SFX_OUT / f'{name}.mp3'
-        if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime and not force:
+        fresh = dst.exists() and dst.stat().st_mtime >= max(src.stat().st_mtime, newest_spec if cut else 0)
+        if fresh and not force:
             continue
-        dur, err = process_audio(src, dst)
-        print(f'sfx   {name}  ' + (f'{dur:.2f}s  {dst.stat().st_size / 1024:.0f} KB' if err is None else f'FAILED: {err}'))
+        dur, err = process_audio(src, dst, cut if cut and (cut.get('start') or cut.get('end') is not None) else None)
+        if err is None and cut and cut.get('cues'):
+            # cues are in source seconds; shift by the slice start and by the leading silence we trimmed
+            p = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(src)],
+                               capture_output=True, text=True)
+            src_dur = float(p.stdout.strip() or 0)
+            expected = (cut['end'] if cut.get('end') is not None else src_dur) - cut.get('start', 0)
+            trimmed = max(0.0, expected - dur)
+            cues = {k: round(max(0.0, v - cut.get('start', 0) - trimmed), 3) for k, v in cut['cues'].items()}
+            (SFX_OUT / f'{name}.json').write_text(json.dumps({'cues': cues, 'trimmed': round(trimmed, 3)}))
+        label = f'{name} <- {src.name}' + (f" [{cut.get('start', 0)}s-{str(cut['end']) + 's' if cut.get('end') is not None else 'end'}]" if cut else '')
+        print(f'sfx   {label}  ' + (f'{dur:.2f}s  {dst.stat().st_size / 1024:.0f} KB' if err is None else f'FAILED: {err}'))
         done += 1
 
     # Manifest: { folder: { pose: { src, w, h } } }, plus sfx: { name: { src } }
     manifest = {}
     for f in sorted(SFX_OUT.glob('*.mp3')) if SFX_OUT.exists() else []:
-        manifest.setdefault('sfx', {})[f.stem] = {'src': f.relative_to(ROOT).as_posix()}
+        entry = {'src': f.relative_to(ROOT).as_posix()}
+        side = f.with_suffix('.json')
+        if side.exists():
+            entry.update(json.loads(side.read_text()))
+        manifest.setdefault('sfx', {})[f.stem] = entry
     for f in sorted(OUT.rglob('*.webp')):
         with Image.open(f) as im:
             w, h = im.size

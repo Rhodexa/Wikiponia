@@ -79,6 +79,7 @@
 
   window.Sound = {
     play, loop, stop, has,
+    cue(name, which) { const c = LIST[name] && LIST[name].cues; return c && c[which] != null ? c[which] : null; },
     get available() { return Object.keys(LIST).length > 0; },
     setEnabled(on) { enabled = !!on; if (!on) [...loops.keys()].forEach(n => stop(n, 0.05)); },
   };

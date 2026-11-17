@@ -194,6 +194,7 @@ Export each sound from Audacity as **`new_assets/sfx/<name>.wav`** (MP3, OGG or 
 - **Format:** keep each under about 1 s, except the loop. Stereo is fine; the script makes it mono.
 - **Fallbacks:** each moment tries names left to right and plays the first one that exists. A small kit (`pop`, `page-turn`, `magic-zap`) already covers almost everything.
 - **Off switch:** sound can be turned off in the Spellbook.
+- **One file, several sounds:** in `new_assets/sfx/splits.json` you can cut one export into several sounds (`slices`) or mark a moment inside a sound for the animation to sync to (`cues`). `book.wav` and `spike-burp.wav` already do this.
 
 | Moment | Names tried, in order |
 |---|---|

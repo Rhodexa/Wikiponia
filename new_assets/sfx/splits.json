@@ -1,0 +1,26 @@
+{
+ "_about": "Per-file sound options. 'slices': cut one exported sound into several app sounds (seconds; null end = to the end). 'keep_source': also install the whole file under its own name. 'cues': named moments (seconds in THIS file) the app syncs animation to; tools/process_assets.py corrects them for the silence it trims. The source files stay untouched.",
+ "book.wav": {
+  "keep_source": false,
+  "slices": {
+   "book-magic": {
+    "start": 0.0,
+    "end": 1.68,
+    "fade_out": 0.08,
+    "_note": "the magical pad: plays while Twilight runs through the stacks"
+   },
+   "page-turn": {
+    "start": 1.66,
+    "end": null,
+    "fade_in": 0.01,
+    "_note": "the page turn: lands when the book opens; also used for chapters and cross-reference cards"
+   }
+  }
+ },
+ "spike-burp.wav": {
+  "cues": {
+   "pop": 0.73
+  },
+  "_note": "pop = the scroll/letter appearing; Spike's Scroll pops the scroll on this cue"
+ }
+}

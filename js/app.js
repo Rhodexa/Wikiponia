@@ -226,6 +226,7 @@
       el.hidden = false;
       void el.offsetWidth;
       el.classList.add('running');
+      Sound.play('book-magic', { volume: 0.9 });       // the magical pad while she runs (book.wav, first 1.68 s)
       Sound.loop('whoosh-loop', { volume: 0.6 });
       const lines = [
         `Searching the stacks for “${esc(pt(title))}”…`,
@@ -283,6 +284,9 @@
     fx.className = 'scroll-fx' + (rigged ? ' rigged' : '');
     fx.hidden = false; void fx.offsetWidth; fx.classList.add('burn');
     Sound.play(['spike-burp', 'magic-zap']);
+    // The scroll pops out on the pop inside the burp sound (cue from new_assets/sfx/splits.json).
+    const popAt = settings.sound && Sound.available ? Sound.cue('spike-burp', 'pop') : null;
+    $('#scrollClosed').style.animationDelay = popAt != null ? popAt + 's' : '';
     // Spike's real green fire from the show (FLA-RE: stk_c07 spike_fire_fire_ref), played frame by frame
     const fireSeq = rigged ? Ponies.frames('fx', 'spike-fire') : [];
     const fireEl = $('#rigFire');

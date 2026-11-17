@@ -14,6 +14,14 @@ Where the art comes from, how it gets into the app, and what was decided along t
 
 ---
 
+## 2026-11-17: first sounds (book, party horn, Spike's burp)
+
+- The user exported `book.wav`, `party-horn.wav` and `spike-burp.wav` from their Audacity pack (`new_assets/sfx/pack.aup3`, which isn't in git).
+- `new_assets/sfx/splits.json` holds per-file sound options:
+  - **slices:** `book.wav` becomes `book-magic` (the magical pad, 0–1.68 s, played while Twilight runs) and `page-turn` (from 1.66 s, played when the book opens and for chapters and cards). The page turn's attack was measured at 1.68 s.
+  - **cues:** `spike-burp.wav` has its `pop` at 0.73 s, the moment the letter appears. The script stores it corrected for trimmed silence (0.68 s in the installed MP3), and Spike's Scroll starts the scroll's pop animation on that cue.
+- To change a timing, edit the number in `splits.json` and rerun `tools/process_assets.py`. The sources are never modified.
+
 ## 2026-11-17: Git, sound system, Spike's real fire
 
 - **Git:** the repo started on `main`, ready for GitHub Pages: all paths are relative and there's a `.nojekyll` file. `.gitignore` skips the zip (an identical copy of `new_assets/new_assets/`) and Audacity work files.
